@@ -1,5 +1,5 @@
 import pytest
-from chiptools.regions import Regions, Region
+from bdgtools.regions import Regions, Region
 
 @pytest.fixture
 def regions():

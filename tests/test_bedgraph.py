@@ -1,4 +1,4 @@
-from chiptools.bedgraph import BedGraph, GraphDiff
+from bdgtools.bedgraph import BedGraph, GraphDiff
 import pytest
 @pytest.fixture
 def bedgraph():
