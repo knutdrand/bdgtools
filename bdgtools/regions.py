@@ -23,8 +23,13 @@ class Regions:
             return (Region(s, e, 1) for s, e in zip(self.starts, self.ends))
         return (Region(*t) for t in zip(self.starts, self.ends, self.directions))
 
+    def __eq__(self, other):
+        t = np.all(self.starts==other.starts)
+        t &= np.all(self.ends==other.ends)
+        return t & np.all(self.directions==other.directions)
+
     def __repr__(self):
-        return f"Regions({self.starts}, {self.ends})"
+        return f"Regions({self.starts}, {self.ends}, {self.directions})"
 
 def expand(regions, upstream, downstream):
     centers = np.where(regions.directions==1, regions.starts, regions.ends-1)
