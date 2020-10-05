@@ -27,16 +27,19 @@ class AggregatePlot:
             if chrom not in regions:
                 continue
             log.info("Processing %s", chrom)
-            self.update_chromosome(chrom, bedgraph, self.transform_regions(regions[chrom]))
-        return self.finalize()
+            self._update_chromosome(chrom, bedgraph, self._transform_regions(regions[chrom]))
+        return self._finalize()
 
-    def transform_regions(self, regions):
+    def get_x_axis(self):
+        return np.arange(self._figure_width)*self._region_size//self._figure_width-self._region_size//2
+
+    def _transform_regions(self, regions):
         return regions
 
     def _pre_process(self, bedgraphs, regions):
         pass
 
-    def finalize(self):
+    def _finalize(self):
         values = np.cumsum(self._diffs, axis=-1)/np.maximum(self._row_counts, 1)[:, None]
         if self._do_normalize:
             values/=(self._coverage/1000000)
@@ -44,9 +47,6 @@ class AggregatePlot:
         table.index = self.get_y_axis()
         table.columns = self.get_x_axis()
         return table
-
-    def get_x_axis(self):
-        return np.arange(self._figure_width)*self._region_size//self._figure_width-self._region_size//2
         
 class MatrixPlot(AggregatePlot):
     def __init__(self, *args, aspect_ratio=None, **kwargs):
@@ -60,23 +60,26 @@ class MatrixPlot(AggregatePlot):
         return np.arange(self._row_counts.size)
     
 class VPlot(MatrixPlot):
-    _aspect_ratio=1
-    _region_size = 50000
     xlabel="Distance from center"
     ylabel="Domain size"
+    _aspect_ratio=1
+    _region_size = 50000
 
-    def update_chromosome(self, chrom, bedgraph, regions):
+    def get_y_axis(self):
+        return np.arange(self._row_counts.size)*self._region_size//self._row_counts.size
+
+    def _update_chromosome(self, chrom, bedgraph, regions):
         rows = ((regions.ends-regions.starts)/self._region_size*self._figure_shape[0]).astype("int")
         mask = rows<self._figure_shape[0]
         mids = (regions.ends[mask]+regions.starts[mask])//2
-        bedgraph.extract_regions(Regions(mids-self._region_size//2, mids+self._region_size//2, regions.directions[mask])).scale_x(self._figure_width).update_dense_diffs(self._diffs, rows[mask])
+        new_regions = Regions(mids-self._region_size//2, mids+self._region_size//2, regions.directions[mask])
+        bedgraph.extract_regions(new_regions).scale_x(self._figure_width).update_dense_diffs(self._diffs, rows[mask])
         rows, counts = np.unique(rows[mask], return_counts=True)
         self._row_counts[rows] += counts
 
-    def finalize(self):
+    def _finalize(self):
         values = np.cumsum(self._diffs, axis=-1)/np.maximum(self._row_counts, 1)[:, None]
         marked_indices = np.flatnonzero(self._row_counts)
-        print(np.flatnonzero(self._row_counts==0))
         for pre, post in zip(marked_indices[:-1], marked_indices[1:]):
             D = post-pre
             if D==1:
@@ -90,14 +93,15 @@ class VPlot(MatrixPlot):
         table.columns = self.get_x_axis()
         return table
 
-    def get_y_axis(self):
-        return np.arange(self._row_counts.size)*self._region_size//self._row_counts.size
-
 class HeatPlot(MatrixPlot):
     _aspect_ratio=2
     _region_size=100000
     xlabel="Distance from center"
     ylabel="Rank(domainsize)"
+
+    def get_y_axis(self):
+        return np.cumsum(self._row_counts)
+
     def _get_y_coords(self, regions):
         sizes = [r.ends-r.starts for _, r in regions.items()]
         offsets = np.cumsum([0]+[len(s) for s in sizes])
@@ -108,30 +112,24 @@ class HeatPlot(MatrixPlot):
     def _pre_process(self, bedgraphs, regions):
         self._y_coords = self._get_y_coords(regions)
 
-    def transform_regions(self, regions):
+    def _transform_regions(self, regions):
         mids = (regions.ends+regions.starts)//2
         return Regions(mids-self._region_size//2, mids+self._region_size//2, regions.directions)
 
-    def update_chromosome(self, chrom, bedgraph, regions):
+    def _update_chromosome(self, chrom, bedgraph, regions):
         y_coords = self._y_coords[chrom]
         signals = bedgraph.extract_regions(regions)
         signals.scale_x(self._figure_width).update_dense_diffs(self._diffs, y_coords)
         rows, counts = np.unique(y_coords, return_counts=True)
         self._row_counts[rows] += counts
 
-    def get_y_axis(self):
-        return np.cumsum(self._row_counts)
-
 class SignalPlot(AggregatePlot):
-    def update_chromosome(self, chrom, bedgraph, regions):
-        print(regions)
-        signals = bedgraph.extract_regions(regions)
-        if self._region_size != self._figure_width:
-            signals = signals.scale_x(self._figure_width)
+    def _update_chromosome(self, chrom, bedgraph, regions):
+        signals = bedgraph.extract_regions(regions).scale_x(self._figure_width)
         signals.sum(axis=1).update_dense_diffs(self._diffs)
         self._row_counts += regions.starts.size
 
-    def finalize(self):
+    def _finalize(self):
         values = np.cumsum(self._diffs, axis=-1)/np.maximum(self._row_counts, 1)
         if self._do_normalize:
             values/=(self._coverage/1000000)
@@ -142,15 +140,16 @@ class TSSPlot(SignalPlot):
     _region_size=2000
     xlabel="Distance from TSS"
     ylabel="~FPKM"
-    def transform_regions(self, regions):
+    def _transform_regions(self, regions):
         return expand(regions, self._region_size//2, self._region_size//2)
 
 class AveragePlot(SignalPlot):
     xlabel="Fraction of domain"
     ylabel="~FPKM"
-    def transform_regions(self, regions):
+    def get_x_axis(self):
+        return np.linspace(-2, 2, self._figure_width)
+
+    def _transform_regions(self, regions):
         sizes = regions.ends-regions.starts
         return Regions(regions.starts-sizes//2, regions.ends+sizes//2, regions.directions)
 
-    def get_x_axis(self):
-        return np.linspace(-2, 2, self._figure_width)

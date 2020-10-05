@@ -12,8 +12,9 @@ with open('HISTORY.rst') as history_file:
 
 requirements = ['Click>=7.0',
                 'numpy',
-                'pandas'
-]
+                'pandas',
+                'seaborn',
+                'matplotlib']
 
 setup_requirements = ['pytest-runner', ]
 
@@ -37,7 +38,7 @@ setup(
     description="Tools to work efficiently with bedgraph files.",
     entry_points={
         'console_scripts': [
-            'bdgtools=bdgtools.cli:main',
+            'bdgplot=bdgtools.cli:main',
         ],
     },
     install_requires=requirements,

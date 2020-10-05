@@ -56,6 +56,4 @@ def test_heatplot(bedgraph, regions_10b, true_matrix):
 def test_vplot(bedgraph, regions_10b, true_signal):
     plotter = VPlot(12, 12, do_normalize=False)
     signal = plotter([("chr1", bedgraph)], {"chr1": regions_10b})
-    print(signal.iloc[10].values)
-    print(true_signal[1:-1])
     assert np.all(signal.iloc[10].values[1:-1]==true_signal)
