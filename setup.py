@@ -11,7 +11,8 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = ['Click>=7.0',
-                'numpy'
+                'numpy',
+                'pandas'
 ]
 
 setup_requirements = ['pytest-runner', ]

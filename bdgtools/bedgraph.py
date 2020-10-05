@@ -11,47 +11,16 @@ def broadcast(values, offsets):
     broadcasted[0] = values[0]
     return np.cumsum(broadcasted)
 
-class GraphDiff:
-    def __init__(self, start_value, indices, values, size=None):
-        self._start_value = start_value
-        self._indices = np.asanyarray(indices)
-        assert np.all(np.diff(self._indices)>0), self._indices
-        assert np.all(self._indices>=0), self._indices
-        self._values = np.asanyarray(values)
-        self._size = size
-
-    def __eq__(self, other):
-        t = self._start_value == other._start_value
-        t &= np.all(self._indices == other._indices)
-        return t and np.all(self._values==other._values)
-
-    def __repr__(self):
-        return "GD(%s, %s, %s)" % (self._start_value, self._indices, self._values)
-
-    def update_dense_array(self, array):
-        self.assert_positive()
-        array[0] += self._start_value
-        assert self._indices.size==0 or array.size>=np.max(self._indices), (array.size, np.max(self._indices))
-        array[self._indices] += self._values
-
-    def assert_positive(self):
-        values = self._start_value + np.cumsum(self._values)
-        assert np.all(values >= -1e-10), (values[values < -1e-10], values.dtype)
-
 class BedGraph:
     def __init__(self, indices, values, size=None, strict=True):
-        # assert (not strict) or indices[0] == 0, ("Indices does not start with 0", indices[:3])
         self._indices = np.asanyarray(indices)
         assert np.issubdtype(self._indices.dtype, np.integer), self._indices
-        # assert np.all(np.diff(self._indices)>0), indices
         if size is not None:
             assert np.all(self._indices<size), (self._indices, size)
 
         self._values = np.asanyarray(values)
-        # assert np.all(self._values>=0), self._values[self._values<0]
         if size is not None:
             self._size = int(size)
-        # assert size is None or size>0
 
     def __iter__(self):
         pairs = zip(self._indices, chain(self._indices[1:], [self._size]))
@@ -91,16 +60,16 @@ class BedGraph:
 
     def _get_slice_indexes(self, start_idxs, end_idxs, directions, offsets):
         all_directions = broadcast(directions, offsets)
-        left_idxs = np.where(directions==1, start_idxs, end_idxs-1)#?
-        right_idxs = np.where(directions==1, end_idxs-1, start_idxs)#?
-        all_directions[offsets[1:-1]] = left_idxs[1:]-right_idxs[:-1]# np.diff(left_idxs)
+        left_idxs = np.where(directions==1, start_idxs, end_idxs-1)
+        right_idxs = np.where(directions==1, end_idxs-1, start_idxs)
+        all_directions[offsets[1:-1]] = left_idxs[1:]-right_idxs[:-1]
         all_directions[0] = left_idxs[0]
         return np.cumsum(all_directions)
 
-    def get_slices(self, starts, ends, directions):
-        starts=np.asanyarray(starts)
-        ends = np.asanyarray(ends)
-        directions = np.asanyarray(directions)
+    def extract_regions(self, regions):
+        starts = regions.starts
+        ends = regions.ends
+        directions = regions.directions
         start_idxs = np.searchsorted(self._indices, starts, side="right")-1
         end_idxs = np.searchsorted(self._indices, ends, side="left")
         offsets = np.insert(np.cumsum(end_idxs-start_idxs), 0, 0)
@@ -115,50 +84,6 @@ class BedGraph:
         transformed_indices = np.where(all_directions==1, indices-all_starts, all_ends-indices)
         transformed_indices[offsets[:-1]]=0
         return BedGraphArray(transformed_indices, values, ends-starts, offsets)
-
-    def get_slices_normal(self, starts, ends, directions):
-        start_idxs = np.searchsorted(self._indices, starts, side="right")
-        end_idxs = np.searchsorted(self._indices, ends, side="left")
-        start_values = self._values[start_idxs-1]
-        offsets = np.cumsum(end_idxs-start_idxs+1)
-        all_idxs = np.empty(offsets[-1], dtype="int")
-        all_values = np.empty(offsets[-1], dtype="float")
-        all_idxs[offsets[:-1]] = 0
-        all_idxs[0] = 0
-        
-        all_values[np.where(directions[1:]==1, offsets[:-1],offsets[1:]-1)] = start_values[1:]
-        if directions[0]==1:
-            all_values[0] = start_values[0]
-        else:
-            all_values[offsets[0]-1] = start_values[0]
-        for start_idx, end_idx, direction, start, end, offset in zip(start_idxs, end_idxs, directions, starts, ends, offsets):
-            S = end_idx-start_idx
-            if direction == 1:
-                print(start_idx, end_idx)
-                all_idxs[offset-S:offset] = self._indices[start_idx:end_idx]-start
-                all_values[offset-S:offset] = self._values[start_idx:end_idx]
-            else:
-                print(start_idx, end_idx)
-                all_idxs[offset-S:offset] = end-self._indices[start_idx:end_idx][::-1]
-                all_values[offset-S-1:offset-1] = self._values[start_idx:end_idx][::-1]
-            yield self.__class__(all_idxs[offset-S-1:offset],
-                                 all_values[offset-S-1:offset],
-                                 end-start)
-
-    def get_slices_slow(self, starts, ends, directions):
-        assert np.all(ends>starts)
-        start_idxs = np.searchsorted(self._indices, starts, side="right")
-        end_idxs = np.searchsorted(self._indices, ends, side="left")
-        start_values = self._values[start_idxs-1]
-        for start_idx, end_idx, start_value, direction, start, end in zip(start_idxs, end_idxs, start_values, directions, starts, ends):
-            indices = np.insert(self._indices[start_idx:end_idx]-start, 0, 0)
-            values = np.insert(self._values[start_idx:end_idx], 0, start_value)
-            new_obj = self.__class__(indices, values, end-start)
-            assert direction in (-1, 1)
-            if direction == -1:
-                yield new_obj.reverse()
-            else:
-                yield new_obj
 
     def threshold(self, value):
         over = self._values >= value
@@ -197,7 +122,6 @@ class BedGraph:
         assert np.issubdtype(new_indices.dtype, np.integer), (self._indices, size, self._size)
         ds = np.concatenate((np.diff(new_indices)>0, [True]))
         return BedGraph(new_indices[ds], self._values[ds], size)
-                        
 
     @classmethod
     def concatenate(cls, bedgraphs):
@@ -213,12 +137,6 @@ class BedGraph:
         assert np.issubdtype(self._indices.dtype, np.integer), self._indices
         diffs[0]+=self._values[0]
         diffs[self._indices[1:]]+= np.diff(self._values)
-
-    def to_graph_diffs(self):
-        gd = GraphDiff(self._values[0],
-                       self._indices[1:], np.diff(self._values), self._size)
-        gd.assert_positive()
-        return gd
 
     def __getitem__(self, index):
         if isinstance(index, slice):
@@ -267,7 +185,7 @@ class BedGraphArray:
         used_indices = indices[index_changes]
         diffs[used_indices//ncols, used_indices % ncols] += total_diffs
 
-    def col_sum(self):
+    def _col_sum(self):
         assert np.all(self._sizes==self._sizes[0]), self._sizes
         args = np.argsort(self._indices, kind="mergesort")
         indices = self._indices[args]
@@ -282,7 +200,7 @@ class BedGraphArray:
     def sum(self, axis=None):
         assert axis in (1, None)
         if axis == 1:
-            return self.col_sum()
+            return self._col_sum()
 
     def __getitem__(self, idx):
         assert idx<self._offsets.size-1
