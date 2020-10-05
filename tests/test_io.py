@@ -24,3 +24,14 @@ def test_read_bedfile():
     bedfile = read_bedfile(f)
     assert bedfile == {"chr1": Regions([0, 10, 25], [10, 25, 35]),
                        "chr2": Regions([0, 5], [5, 10])}
+
+def test_read_directed_bedfile():
+    lines = ["chr1\t0\t10\t.\t.\t+",
+             "chr1\t10\t25\t.\t.\t-",
+             "chr1\t25\t35\t.\t.\t+",
+             "chr2\t0\t5\t.\t.\t-",
+             "chr2\t5\t10\t.\t.\t+"]
+    f = io.StringIO("\n".join(lines))
+    bedfile = read_bedfile(f)
+    assert bedfile == {"chr1": Regions([0, 10, 25], [10, 25, 35], [1, -1, 1]),
+                       "chr2": Regions([0, 5], [5, 10], [-1, 1])}
