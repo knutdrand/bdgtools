@@ -38,7 +38,7 @@ setup(
     description="Tools to work efficiently with bedgraph files.",
     entry_points={
         'console_scripts': [
-            'bdgplot=bdgtools.cli:main',
+            'bdgplot=bdgtools.cli:do_plot',
         ],
     },
     install_requires=requirements,

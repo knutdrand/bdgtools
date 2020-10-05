@@ -26,6 +26,7 @@ def test_content(response):
     # assert 'GitHub' in BeautifulSoup(response.content).title.string
 
 
+@pytest.mark.skip
 def test_command_line_interface():
     """Test the CLI."""
     runner = CliRunner()

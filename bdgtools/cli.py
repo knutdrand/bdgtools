@@ -8,6 +8,9 @@ from .aggregateplot import *
 from .plotter import plot, join_line_plots, join_matrix_plots
 plot_types = {"v": VPlot, "average": AveragePlot, "heat": HeatPlot, "tss": TSSPlot}
 
+@click.command()
+def main():
+    return 0
 
 @click.command()
 @click.argument("plot_type", type=click.Choice(plot_types.keys()))
@@ -17,7 +20,7 @@ plot_types = {"v": VPlot, "average": AveragePlot, "heat": HeatPlot, "tss": TSSPl
 @click.option("-od", "--out_data", "out_data", type=click.File("wb"), help="Path to pickle of figure")
 @click.option("-w", "--width", "figure_width", default=2000, help="Figure width")
 @click.option("-rs", "--regionsize", "region_size", type=int, help="Genomic region size")
-def main(plot_type, bedgraph, bedfile, out_im, out_data, figure_width, region_size):
+def do_plot(plot_type, bedgraph, bedfile, out_im, out_data, figure_width, region_size):
     assert plot_type in plot_types
     bedgraphs = read_bedgraph(bedgraph)
     regions = read_bedfile(bedfile)

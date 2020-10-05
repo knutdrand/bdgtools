@@ -26,6 +26,37 @@ Tools to work efficiently with bedgraph files.
 * Free software: MIT license
 * Documentation: https://bdgtools.readthedocs.io.
 
+## Installation
+
+Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
+
+```bash
+pip install bdgtools
+```
+
+## Usage
+### Command Line
+```bash
+bdgplot tss CTCF_treat_pileup.bdg genes.bed
+bdgplot average CTCF_treat_pileup.bdg CTCF_peaks.narrowPeak
+```
+### Python
+
+```python
+from bdgtools import read_bedgraph, read_bedfile, VPlot, plot
+bedgraph = read_bedgraph("CTCF_treat_pileup.bdg")
+regions = read_bedfile("CTCF_peaks.narrowPeak")
+max_peak_size = max(np.max(r.ends-r.starts) for r in regions)
+plotter = VPlot(figure_width=1000)
+df = plotter(bedgraph, regions)
+plot(df, plotter, show=True)
+```
+
+## Contributing
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+
+Please make sure to update tests as appropriate.
+
 
 Features
 --------
