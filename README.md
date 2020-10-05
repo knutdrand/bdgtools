@@ -18,14 +18,38 @@ Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
 ```bash
 pip install bdgtools
 ```
-
 ## Usage
 ### Command Line
+Create signal plots of tss+-500 :
 ```bash
-bdgplot tss CTCF_treat_pileup.bdg genes.bed
+bdgplot tss CTCF_treat_pileup.bdg genes.bed --rs 1000
+```
+or a V-plot over entire gene bodies:
+```bash
+bdgplot v CTCF_treat_pileup.bdg genes.bed
+```
+
+Create average signal plot over peak regions
+```bash
 bdgplot average CTCF_treat_pileup.bdg CTCF_peaks.narrowPeak
 ```
+or a heatmap over all peak regions
+```bash
+bdgplot average CTCF_treat_pileup.bdg CTCF_peaks.narrowPeak
+```
+
+Save figure to a png file
+```bash
+bdgplot v CTCF_treat_pileup.bdg CTCF_peaks.narrowPeak -o CTCF_vplot.png
+```
+or save figure data to pickle
+
+```bash
+bdgplot v CTCF_treat_pileup.bdg CTCF_peaks.narrowPeak -od CTCF_vplot_data.pkl
+```
+
 ### Python
+Read bedgraph and bedfile from file and show a vplot: 
 
 ```python
 from bdgtools import read_bedgraph, read_bedfile, VPlot, plot
