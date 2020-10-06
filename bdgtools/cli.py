@@ -5,12 +5,9 @@ from pathlib import PurePath
 
 from .io import read_bedgraph, read_bedfile
 from .aggregateplot import *
-from .plotter import plot, join_line_plots, join_matrix_plots
+from .plotter import plot, join_plots
 plot_types = {"v": VPlot, "average": AveragePlot, "heat": HeatPlot, "tss": TSSPlot}
 
-@click.command()
-def main():
-    return 0
 
 @click.command()
 @click.argument("plot_type", type=click.Choice(plot_types.keys()))
@@ -27,26 +24,24 @@ def do_plot(plot_type, bedgraph, bedfile, out_im, out_data, figure_width, region
     f = plot_types[plot_type](figure_width=figure_width, region_size=region_size)
     fig = f(bedgraphs, regions)
     plot(fig, f, save_path=out_im, show=out_im is None and out_data is None)
+    if out_data is not None:
+        fig.to_pickle(out_data)
     return 0
 
-@click.command()
+@click.group()
+def main():
+    return 0
+
+@main.command()
+@click.argument("plot_type", type=click.Choice(plot_types.keys()))
 @click.argument("data_files", nargs=-1, type=click.File("rb"))
 @click.option("-o", "--out_im", "out_im", type=click.File("wb"))
-def join_figs(data_files, out_im):
+def joinfigs(plot_type, data_files, out_im):
     figs = [pd.read_pickle(df) for df in data_files]
     names = [PurePath(df.name).stem for df in data_files]
-    if "x" in figs[0]:
-        axes = join_line_plots(figs)
-        plt.legend(names)
-    else:
-        axes = join_matrix_plots(figs)
-        for ax, name in zip(axes, name):
-            ax.set_title(name)
-    if out_im is not None:
-        plt.savefig(out_im)
-    else:
-        plt.show()
-
+    click.echo("Joining figures from %s" % " ".join(names))
+    cls = plot_types[plot_type]
+    join_plots(figs, names, cls, save_path=out_im, show=out_im is None)
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

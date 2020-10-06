@@ -34,7 +34,7 @@ def _get_bedgraph(chunks):
     cur_chrom = chunks[0]["chrom"].iloc[0]
     starts = np.concatenate([c["start"].values for c in chunks])
     ends = np.concatenate([c["end"].values for c in chunks])
-    assert starts[0] == 0, "Bedgraph does not start on 0"
+    assert starts[0] == 0, f"Bedgraph does not start on 0 on {cur_chrom}"
     assert np.all(starts[1:] == ends[:-1]), f"Begraph is not continous on {cur_chrom}, {starts[1:]}, {ends[:-1]}\n{np.flatnonzero(starts[1:]!=ends[:-1])}, {starts.size}"
     log.info("Read chromosome", cur_chrom)
     return BedGraph(starts,

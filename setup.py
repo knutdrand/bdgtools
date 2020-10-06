@@ -39,6 +39,7 @@ setup(
     entry_points={
         'console_scripts': [
             'bdgplot=bdgtools.cli:do_plot',
+            'bdgtools=bdgtools.cli:main',
         ],
     },
     install_requires=requirements,

@@ -19,11 +19,23 @@ def plot(df, cls, save_path=None, show=False):
         plt.show()
 
 
-def join_line_plots(figs):
-    plt.figure(figsize=(10, 10))
-    return [sns.lineplot(data=fig, x="x", y="y") for fig in figs]
+def join_plots(dfs, names, cls, save_path=None, show=False):
+    if issubclass(cls, SignalPlot):
+        plt.figure(figsize=(10, 10))
+        for df in dfs:
+            sns.lineplot(data=df, x="x", y="y")
+        plt.xlabel(cls.xlabel)
+        plt.ylabel(cls.ylabel)
+        plt.legend(names)
+    elif issubclass(cls, MatrixPlot):
+        f, axes = plt.subplots(1, len(dfs))
+        for ax, df, name in zip(axes, dfs, names):
+            sns.heatmap(df, cmap="gray_r", ax=ax)
+            ax.set_title(name)
+            ax.set_xlabel(cls.xlabel)
+        axes[0].set_ylabel(cls.ylabel)
+    if save_path is not None:
+        plt.savefig(save_path)
+    if show:
+        plt.show()
 
-def join_matrix_plots(figs):
-    f, axes = plt.subplots(1, len(figs))
-    return [sns.heatmap(fig, ax=ax) for ax, fig in zip(axes, figs)]
-    
