@@ -18,7 +18,6 @@ plot_types = {"v": VPlot, "average": AveragePlot, "heat": HeatPlot, "tss": TSSPl
 @click.option("-w", "--width", "figure_width", default=2000, help="Figure width")
 @click.option("-rs", "--regionsize", "region_size", type=int, help="Genomic region size")
 def do_plot(plot_type, bedgraph, bedfile, out_im, out_data, figure_width, region_size):
-    assert plot_type in plot_types
     bedgraphs = read_bedgraph(bedgraph)
     regions = read_bedfile(bedfile)
     f = plot_types[plot_type](figure_width=figure_width, region_size=region_size)
