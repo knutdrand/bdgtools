@@ -1,4 +1,5 @@
 import logging
+from itertools import chain, groupby
 import pandas as pd
 import numpy as np
 from .regions import Regions
@@ -28,27 +29,25 @@ def read_bedfile(file_obj):
           for t in chrom_split}
     return r
 
+def _get_bedgraph(chunks):
+    chunks = list(chunks)
+    cur_chrom = chunks[0]["chrom"].iloc[0]
+    starts = np.concatenate([c["start"].values for c in chunks])
+    ends = np.concatenate([c["end"].values for c in chunks])
+    assert starts[0] == 0, "Bedgraph does not start on 0"
+    assert np.all(starts[1:] == ends[:-1]), f"Begraph is not continous on {cur_chrom}, {starts[1:]}, {ends[:-1]}\n{np.flatnonzero(starts[1:]!=ends[:-1])}, {starts.size}"
+    log.info("Read chromosome", cur_chrom)
+    return BedGraph(starts,
+                    np.concatenate([c["value"].values for c in chunks]),
+                    chunks[-1]["end"].values[-1])
+
+def _split_chunk_on_chromosomes(chunk):
+    changes = list(np.flatnonzero(chunk["chrom"].values[1:]!=chunk["chrom"].values[:-1])+1)
+    return (chunk.iloc[start_idx:end_idx] for start_idx, end_idx in
+            zip([0] + changes, changes + [len(chunk.index)]))
+
 def read_bedgraph(file_obj, size_hint=1000000):
-    cur_chrom=None
     reader = pd.read_table(file_obj, names=["chrom", "start", "end", "value"], usecols=[0, 1, 2, 3], chunksize=size_hint)
-    chunks = []
-    for chunk in reader:
-        while chunk["chrom"].iloc[-1] != cur_chrom:
-            idx = np.argmax(chunk["chrom"].values!=cur_chrom)
-            chunks.append(chunk.iloc[:idx])
-            if cur_chrom is not None:
-                log.info("Read chrom %s", cur_chrom)
-                starts = np.concatenate([c["start"].values for c in chunks])
-                ends = np.concatenate([c["end"].values for c in chunks])
-                assert starts[0] == 0, "Bedgraph does not start on 0"
-                assert np.all(starts[1:] == ends[:-1]), f"Begraph is not continous on {cur_chrom}, {starts}, {ends}"
-                yield cur_chrom, BedGraph(np.concatenate([c["start"].values for c in chunks]),
-                                          np.concatenate([c["value"].values for c in chunks]),
-                                          chunks[-1]["end"].values[-1])
-                chunks = []
-            chunk = chunk.iloc[idx:]
-            cur_chrom = chunk["chrom"].iloc[0]
-        chunks.append(chunk)
-    yield cur_chrom, BedGraph(np.concatenate([c["start"].values for c in chunks]),
-                              np.concatenate([c["value"].values for c in chunks]),
-                              chunks[-1]["end"].values[-1])
+    chunks = chain.from_iterable(_split_chunk_on_chromosomes(chunk) for chunk in reader)
+    return ((chrom, _get_bedgraph(group)) for chrom, group in 
+            groupby(chunks, lambda x: x.iloc[0]["chrom"]))
