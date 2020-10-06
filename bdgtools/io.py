@@ -37,7 +37,11 @@ def read_bedgraph(file_obj, size_hint=1000000):
             idx = np.argmax(chunk["chrom"].values!=cur_chrom)
             chunks.append(chunk.iloc[:idx])
             if cur_chrom is not None:
-                log.info("Yielding chrom %s", cur_chrom)
+                log.info("Read chrom %s", cur_chrom)
+                starts = np.concatenate([c["start"].values for c in chunks])
+                ends = np.concatenate([c["end"].values for c in chunks])
+                assert starts[0] == 0, "Bedgraph does not start on 0"
+                assert np.all(starts[1:] == ends[:-1]), f"Begraph is not continous on {cur_chrom}, {starts}, {ends}"
                 yield cur_chrom, BedGraph(np.concatenate([c["start"].values for c in chunks]),
                                           np.concatenate([c["value"].values for c in chunks]),
                                           chunks[-1]["end"].values[-1])
