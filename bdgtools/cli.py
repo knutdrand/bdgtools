@@ -6,8 +6,8 @@ from pathlib import PurePath
 from .io import read_bedgraph, read_bedfile, read_refseq
 from .aggregateplot import *
 from .plotter import plot, join_plots
-plot_types = {"v": VPlot, "average": AveragePlot, "heat": HeatPlot, "tss": TSSPlot, "signal": SignalPlot}
-
+plot_types = {"v": VPlot, "average": AveragePlot, "heat": HeatPlot, "tss": TSSPlot, "signal": SignalPlot,
+              "metagene": MetaGenePlot}
 
 @click.command()
 @click.argument("plot_type", type=click.Choice(plot_types.keys()))

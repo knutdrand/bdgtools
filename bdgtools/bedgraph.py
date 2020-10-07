@@ -2,7 +2,7 @@ import numpy as np
 import logging
 from collections import Counter
 from itertools import chain
-
+from more_itertools import pairwise
 from .regions import Regions
 
 def broadcast(values, offsets):
@@ -83,6 +83,7 @@ class BedGraph:
         all_ends = broadcast(ends, offsets)
         transformed_indices = np.where(all_directions==1, indices-all_starts, all_ends-indices)
         transformed_indices[offsets[:-1]]=0
+        # assert np.all(np.diff(transformed_indices)), (transformed_indices, regions)
         return BedGraphArray(transformed_indices, values, ends-starts, offsets)
 
     def threshold(self, value):
@@ -158,13 +159,24 @@ class BedGraphArray:
         assert np.all(self._indices>=0), self._indices.dtype
         self._values = np.asanyarray(values)
         self._sizes = np.asanyarray(sizes)
+        assert np.all(self._sizes>0), sizes
+
         assert offsets[-1]==self._indices.size, (offsets[-1], self._indices.size)
+        assert np.all(np.diff(offsets)>0), offsets
         self._offsets = np.asanyarray(offsets)
 
     def __repr__(self):
         return f"BGA({self._indices},{self._values}, {self._sizes}, {self._offsets})"
 
+    def __eq__(self, other):
+        t = np.all(self._indices==other._indices)
+        t &= np.all(self._values==other._values)
+        t &= np.all(self._sizes==other._sizes)
+        t &= np.all(self._offsets==other._offsets)
+        return t
+
     def scale_x(self, size):
+        assert size > 0 
         all_sizes=broadcast(self._sizes, self._offsets)
         new_indices = (self._indices*size//all_sizes)
         mask = np.concatenate((np.diff(new_indices)>0, [True]))
@@ -193,7 +205,6 @@ class BedGraphArray:
         args = np.argsort(self._indices, kind="mergesort")
         indices = self._indices[args]
         index_changes = np.insert(indices[:-1] != indices[1:], indices.size-1, True)
-
         value_diffs = np.insert(np.diff(self._values), 0, self._values[0])[args]
         value_diffs[:self._offsets.size-1] = self._values[self._offsets[:-1]]
         values = np.cumsum(value_diffs)[index_changes]
@@ -212,6 +223,24 @@ class BedGraphArray:
         assert axis in (1, None)
         if axis == 1:
             return self._col_sum()
+
+    def extract_regions(self, regions):
+        assert regions.starts.size == self._sizes.size
+        assert np.all(regions.directions==1), "only positive regions supported"
+        all_starts = broadcast(regions.starts, self._offsets)
+        all_ends = broadcast(regions.ends, self._offsets)
+        mask = all_starts < self._indices
+        mask &= self._indices < all_ends
+        last_entries = self._offsets[1:]-1
+        mask[:-1] |= mask[1:] # Include previous index
+        mask[last_entries] |= self._indices[last_entries] < all_starts[last_entries]
+        offsets = np.insert(np.cumsum(mask), 0, 0)[self._offsets]
+        indices = self._indices[mask]-all_starts[mask]
+        assert np.all(indices.size > offsets[:-1]), (offsets, mask, regions, self[0])
+        indices[offsets[:-1]] = 0
+        values = self._values[mask]
+        print(mask, indices, values)
+        return self.__class__(indices, values, regions.sizes(), offsets)
 
     def __getitem__(self, idx):
         assert idx<self._offsets.size-1
@@ -234,12 +263,25 @@ class BedGraphArray:
                    np.concatenate([a._sizes for a in arrays]),
                    new_offsets)
 
-
     @classmethod
     def from_bedgraphs(cls, bedgraphs):
         sizes = [bg._size for bg in bedgraphs]
-        offsets = np.cumsum([0] + sizes)
+        offsets = np.cumsum([0] + [bg._indices.size for bg in bedgraphs])
         values = np.concatenate([bg._values for bg in bedgraphs])
         indices = np.concatenate([bg._indices for bg in bedgraphs])
         return cls(indices, values, sizes, offsets)
         
+    def piecewise_scale(self, break_points, new_sizes):
+        new_indices = np.empty_like(self._indices)
+        broad_casted = (broadcast(bp, self._offsets) for bp in break_points)
+        new_offsets = np.cumsum([0] + list(new_sizes))
+        for (all_starts, all_ends), ns, offset in zip(pairwise(broad_casted), new_sizes, new_offsets):
+            mask = self._indices>=all_starts
+            mask &= self._indices<all_ends
+            new_indices[mask] = (offset+(self._indices-all_starts)*ns//(all_ends-all_starts))[mask]
+
+        mask = np.concatenate((np.diff(new_indices)>0, [True]))
+        mask[self._offsets[1:]-1] = True
+        counts = np.cumsum(mask)
+        new_offsets = np.insert(counts[self._offsets[1:]-1], 0, 0)
+        return BedGraphArray(new_indices[mask], self._values[mask], sum(new_sizes)*np.ones_like(self._sizes), new_offsets)

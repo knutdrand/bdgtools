@@ -5,9 +5,15 @@ from .aggregateplot import *
 sns.set_theme()
 
 def plot(df, cls, save_path=None, show=False):
+    if save_path is None and not show:
+        return
     plt.figure(figsize=(10, 10))
     if isinstance(cls, SignalPlot):
-        p = sns.lineplot(data=df, x="x", y="y")
+        if "region" in df:
+            print("Setting HUE")
+            p = sns.lineplot(data=df, x="x", y="y", hue="region")
+        else:
+            p = sns.lineplot(data=df, x="x", y="y")
     else:
         p = sns.heatmap(df, cmap="gray_r")
     p.set_xlabel(cls.xlabel)
@@ -22,8 +28,12 @@ def plot(df, cls, save_path=None, show=False):
 def join_plots(dfs, names, cls, save_path=None, show=False):
     if issubclass(cls, SignalPlot):
         plt.figure(figsize=(10, 10))
+        cur_hue = 0
         for df in dfs:
-            sns.lineplot(data=df, x="x", y="y")
+            if "region" in df:
+                p = sns.lineplot(data=df, x="x", y="y", style="region")
+            else:
+                sns.lineplot(data=df, x="x", y="y")
         plt.xlabel(cls.xlabel)
         plt.ylabel(cls.ylabel)
         plt.legend(names)

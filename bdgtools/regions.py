@@ -9,10 +9,12 @@ def get_holes(regions):
 
 class Regions:
     def __init__(self, starts, ends, directions=1):
-        # assert np.all(np.diff(starts)>0), starts[:-1][np.diff(starts)>0]
-        # assert np.all(np.diff(ends)>0)
         self.starts = np.asanyarray(starts)
         self.ends = np.asanyarray(ends)
+        assert np.all(self.starts>=0)
+        assert np.all(self.ends>=0)
+        assert np.all(self.ends>starts)
+
         if isinstance(directions, int) and directions == 1:
             self.directions=np.ones_like(self.starts)
         else:

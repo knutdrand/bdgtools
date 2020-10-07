@@ -161,3 +161,36 @@ class AveragePlot(SignalPlot):
         sizes = regions.sizes()
         return Regions(regions.starts-sizes//2, regions.ends+sizes//2, regions.directions)
 
+class MetaGenePlot(SignalPlot):
+    def _pre_process(self, bedgraphs, genes_dict):
+        utr_l_size, cds_size, utr_r_size = (0, 0, 0)
+        for genes in genes_dict.values():
+            utr_l_size += np.sum(genes._coding_regions.starts)
+            cds_size += np.sum(genes._coding_regions.sizes())
+            utr_r_size += np.sum(genes.sizes()-genes._coding_regions.ends)
+        sizes = (utr_l_size, cds_size, utr_r_size)
+        self._region_sizes = np.array(sizes)*self._figure_width//sum(sizes)
+        self._region_sizes[-1]+=self._figure_width-np.sum(self._region_sizes)
+        print(self._region_sizes)
+
+    def _finalize(self):
+        df = super()._finalize()
+        r = np.concatenate([np.ones(size)*i for i, size in zip((1,0,2), self._region_sizes)])
+        df["region"] = r
+        return df
+
+    def _update_chromosome(self, chrom, bedgraph, regions):
+        regions.get_signals(bedgraph).piecewise_scale(
+            [np.zeros_like(regions._coding_regions.starts),
+             regions._coding_regions.starts,
+             regions._coding_regions.ends,
+             regions.sizes()], self._region_sizes).sum(axis=1).update_dense_diffs(self._diffs)
+        # 
+        #     
+        # 
+        # utr_l, cds, utr_r = regions.get_signals(bedgraph)
+        # 
+        # for signals, diffs in zip((utr_l, cds, utr_r), self._split_diffs):
+        #     print(signals)
+        #     signals.scale_x(diffs.shape[-1]).sum(axis=1).update_dense_diffs(diffs)
+        # self._row_counts += regions.starts.size

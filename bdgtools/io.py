@@ -4,7 +4,7 @@ from operator import itemgetter
 import pandas as pd
 import numpy as np
 from .regions import Regions
-from .splitregions import SplitRegions
+from .splitregions import SplitRegions, Genes
 from .bedgraph import BedGraph
 
 log = logging
@@ -51,23 +51,49 @@ def read_bedgraph(file_obj, size_hint=1000000):
     return ((chrom, _get_bedgraph(group)) for chrom, group in grouped)
 
 
-def _get_split_regions(df):
+def _get_genes(df):
+    s = np.array([starts[0] for starts in df["exon_starts"]])
+    e = np.array([ends[-1] for ends in df["exon_ends"]])
+    mask = df["cds_start"] > s
+    mask &= df["cds_end"] > df["cds_start"]
+    mask &= e > df["cds_end"]
+    if not np.any(mask):
+        return None
+    df = df.loc[mask]
     directions = np.where(df["direction"].values=="+", 1, -1)
     starts = np.concatenate([s[::d] for s, d in zip(df["exon_starts"].values, directions)])
-    #       (df["exon_starts"].values)[::d])
     ends = np.concatenate([s[::d] for s, d in zip(df["exon_ends"].values, directions)])
-    # ends = np.concatenate(df["exon_ends"].values)
     lens = [len(starts) for starts in df["exon_starts"]]
+    coding_offsets = np.array([get_coding_offsets(r["exon_starts"], r["exon_ends"],
+                                                  r["cds_start"], r["cds_end"], r["direction"])
+                               for _, r in df.iterrows()], dtype="int")
+    
     offsets=np.cumsum([0]+lens)
     all_directions = np.concatenate([[d]*l for d, l in zip(directions, lens)])
     regions = Regions(starts, ends, all_directions)
-    return SplitRegions(regions, offsets)
+    return Genes(regions, offsets, coding_regions=Regions(coding_offsets[:, 0], coding_offsets[:, 1]))
+
+def get_coding_offsets(exon_starts, exon_ends, cds_start, cds_end, direction):
+    #assert anno.txStart<anno.cdsStart<anno.cdsEnd<anno.txEnd, anno
+    offsets = np.cumsum([0]+[end-start for start, end in zip(exon_starts, exon_ends)])
+    idxs = np.searchsorted(exon_starts, [cds_start, cds_end], side="right")-1
+
+    # for idx, pos in zip(idxs, [anno.cdsStart, anno.cdsEnd]):
+    #     assert idx<len(anno.exonStarts), (idx, pos, anno)
+    #     assert anno.exonStarts[idx]<=pos, (anno, idx, pos)
+    #     assert idx==len(anno.exonStarts)-1 or pos < anno.exonStarts[idx+1], (anno, idx, pos)
+    t =  tuple(offsets[i]+pos-exon_starts[i] for i, pos in zip(idxs, [cds_start, cds_end]))
+    if direction=="-":
+        size = sum(exon_ends)-sum(exon_starts)
+        return (size-t[1], size-t[0])
+    return t
 
 def read_refseq(file_obj):
     get_ints = lambda x: [int(r) for r in x.split(",") if r]
     df = pd.read_table(file_obj, 
-                       names=["chrom", "direction", "start", "end", "exon_starts", "exon_ends"], 
-                       usecols=[2,3,4,5,9,10], 
+                       names=["chrom", "direction", "start", "end","cds_start","cds_end", "exon_starts", "exon_ends"], 
+                       usecols=[2,3,4,5,6,7,9,10], 
                        converters={"exon_starts": get_ints, "exon_ends": get_ints})
     grouped = df.sort_values(["chrom", "start"]).groupby("chrom", sort=False)
-    return {chrom: _get_split_regions(df) for chrom, df in grouped}
+    d =  {chrom: _get_genes(df) for chrom, df in grouped}
+    return {chrom: genes for chrom,  genes in d.items() if genes is not None}

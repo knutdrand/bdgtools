@@ -1,5 +1,6 @@
 from bdgtools.bedgraph import BedGraph, BedGraphArray
 from bdgtools.regions import Regions
+import numpy as np
 import pytest
 
 @pytest.fixture
@@ -11,9 +12,11 @@ def bedgrapharray():
     return BedGraphArray([0, 10, 0, 10, 25], [0, 1, 2, 3, 4], [15, 35], [0, 2, 5])
 
 @pytest.fixture
-def bedgrapharray():
-    return BedGraphArray([0, 10, 0, 10, 25], [0, 1, 2, 3, 4], [15, 35], [0, 2, 5])
-
+def regions():
+    starts = [2, 13, 17]
+    ends = [12, 27, 36]
+    directions = [1, -1, -1]
+    return Regions(starts, ends, directions)
 
 def test_getitem(bedgraph):
     values = bedgraph[[10, 11, 14, 15, 16]]
@@ -32,11 +35,8 @@ def test_reverse(bedgraph):
 
     return BedGraph([0, 10, 15, 25, 40], [0, 1, 2, 3, 4], size=50)
 
-def test_extract_regions(bedgraph):
-    starts = [2, 13, 17]
-    ends = [12, 27, 36]
-    directions = [1, -1, -1]
-    slices = list(bedgraph.extract_regions(Regions(starts, ends, directions)))
+def test_extract_regions(bedgraph, regions):
+    slices = list(bedgraph.extract_regions(regions))
     true =  [BedGraph([0,8], [0, 1], 10),
              BedGraph([0, 2, 12], [3, 2, 1], 14),
              BedGraph([0, 11], [3, 2], 19)]
@@ -56,3 +56,8 @@ def test_join_rows2(bedgraph, bedgrapharray):
     bga = BedGraphArray.vstack((bedgrapharray, bedgrapharray))
     for bg in list(bga.join_rows([0,2,4])):
         assert bedgraph == bg
+
+def test_extract_regions_bga(bedgraph, regions):
+    regions.directions=np.array([1,1,1], dtype="int")
+    bga = BedGraphArray.from_bedgraphs([bedgraph]*3)
+    assert bga.extract_regions(regions)==bedgraph.extract_regions(regions)
