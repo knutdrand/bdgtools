@@ -11,9 +11,9 @@ class Regions:
     def __init__(self, starts, ends, directions=1):
         self.starts = np.asanyarray(starts)
         self.ends = np.asanyarray(ends)
-        assert np.all(self.starts>=0)
-        assert np.all(self.ends>=0)
-        assert np.all(self.ends>starts)
+        assert np.all(self.starts>=0), self.starts
+        assert np.all(self.ends>=0), self.ends
+        assert np.all(self.ends>starts), (self.starts, self.ends)
 
         if isinstance(directions, int) and directions == 1:
             self.directions=np.ones_like(self.starts)
