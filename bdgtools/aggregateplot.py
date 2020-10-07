@@ -73,7 +73,8 @@ class VPlot(MatrixPlot):
         mask = rows<self._figure_shape[0]
         mids = (regions.ends[mask]+regions.starts[mask])//2
         new_regions = Regions(mids-self._region_size//2, mids+self._region_size//2, regions.directions[mask])
-        bedgraph.extract_regions(new_regions).scale_x(self._figure_width).update_dense_diffs(self._diffs, rows[mask])
+        signals = regions.get_signals(bedgraph).scale_x(self._figure_width).update_dense_diffs(self._diffs, rows[mask])
+        # bedgraph.extract_regions(new_regions)
         rows, counts = np.unique(rows[mask], return_counts=True)
         self._row_counts[rows] += counts
 
@@ -118,14 +119,18 @@ class HeatPlot(MatrixPlot):
 
     def _update_chromosome(self, chrom, bedgraph, regions):
         y_coords = self._y_coords[chrom]
-        signals = bedgraph.extract_regions(regions)
+        #signals = bedgraph.extract_regions(regions)
+        signals = regions.get_signals(bedgraph)
         signals.scale_x(self._figure_width).update_dense_diffs(self._diffs, y_coords)
         rows, counts = np.unique(y_coords, return_counts=True)
         self._row_counts[rows] += counts
 
 class SignalPlot(AggregatePlot):
+    xlabel="Fraction of region"
+    ylabel="~FPKM"
     def _update_chromosome(self, chrom, bedgraph, regions):
-        signals = bedgraph.extract_regions(regions).scale_x(self._figure_width)
+        signals = regions.get_signals(bedgraph).scale_x(self._figure_width)
+        # signals = bedgraph.extract_regions(regions)
         signals.sum(axis=1).update_dense_diffs(self._diffs)
         self._row_counts += regions.starts.size
 
@@ -135,21 +140,24 @@ class SignalPlot(AggregatePlot):
             values/=(self._coverage/1000000)
         return pd.DataFrame({"x":self.get_x_axis(), "y": values})
 
+    def get_x_axis(self):
+        return np.linspace(-0.5, 0.5, self._figure_width)
         
 class TSSPlot(SignalPlot):
     _region_size=2000
     xlabel="Distance from TSS"
-    ylabel="~FPKM"
+
+    def get_x_axis(self):
+        return np.arange(self._figure_width)*self._region_size//self._figure_width-self._region_size//2
+
     def _transform_regions(self, regions):
         return expand(regions, self._region_size//2, self._region_size//2)
 
 class AveragePlot(SignalPlot):
-    xlabel="Fraction of domain"
-    ylabel="~FPKM"
     def get_x_axis(self):
         return np.linspace(-2, 2, self._figure_width)
 
     def _transform_regions(self, regions):
-        sizes = regions.ends-regions.starts
+        sizes = regions.sizes()
         return Regions(regions.starts-sizes//2, regions.ends+sizes//2, regions.directions)
 

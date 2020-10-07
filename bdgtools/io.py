@@ -1,8 +1,10 @@
 import logging
 from itertools import chain, groupby
+from operator import itemgetter
 import pandas as pd
 import numpy as np
 from .regions import Regions
+from .splitregions import SplitRegions
 from .bedgraph import BedGraph
 
 log = logging
@@ -41,13 +43,31 @@ def _get_bedgraph(chunks):
                     np.concatenate([c["value"].values for c in chunks]),
                     chunks[-1]["end"].values[-1])
 
-def _split_chunk_on_chromosomes(chunk):
-    changes = list(np.flatnonzero(chunk["chrom"].values[1:]!=chunk["chrom"].values[:-1])+1)
-    return (chunk.iloc[start_idx:end_idx] for start_idx, end_idx in
-            zip([0] + changes, changes + [len(chunk.index)]))
-
 def read_bedgraph(file_obj, size_hint=1000000):
     reader = pd.read_table(file_obj, names=["chrom", "start", "end", "value"], usecols=[0, 1, 2, 3], chunksize=size_hint)
-    chunks = chain.from_iterable(_split_chunk_on_chromosomes(chunk) for chunk in reader)
-    return ((chrom, _get_bedgraph(group)) for chrom, group in 
-            groupby(chunks, lambda x: x.iloc[0]["chrom"]))
+    grouped = groupby(chain.from_iterable(chunk.groupby("chrom", sort=False) for chunk in reader), 
+                      itemgetter(0))
+    grouped = ((chrom, map(itemgetter(1),  group)) for chrom, group in grouped)
+    return ((chrom, _get_bedgraph(group)) for chrom, group in grouped)
+
+
+def _get_split_regions(df):
+    directions = np.where(df["direction"].values=="+", 1, -1)
+    starts = np.concatenate([s[::d] for s, d in zip(df["exon_starts"].values, directions)])
+    #       (df["exon_starts"].values)[::d])
+    ends = np.concatenate([s[::d] for s, d in zip(df["exon_ends"].values, directions)])
+    # ends = np.concatenate(df["exon_ends"].values)
+    lens = [len(starts) for starts in df["exon_starts"]]
+    offsets=np.cumsum([0]+lens)
+    all_directions = np.concatenate([[d]*l for d, l in zip(directions, lens)])
+    regions = Regions(starts, ends, all_directions)
+    return SplitRegions(regions, offsets)
+
+def read_refseq(file_obj):
+    get_ints = lambda x: [int(r) for r in x.split(",") if r]
+    df = pd.read_table(file_obj, 
+                       names=["chrom", "direction", "start", "end", "exon_starts", "exon_ends"], 
+                       usecols=[2,3,4,5,9,10], 
+                       converters={"exon_starts": get_ints, "exon_ends": get_ints})
+    grouped = df.sort_values(["chrom", "start"]).groupby("chrom", sort=False)
+    return {chrom: _get_split_regions(df) for chrom, df in grouped}

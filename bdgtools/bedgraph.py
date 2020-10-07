@@ -154,12 +154,15 @@ class BedGraph:
 
 class BedGraphArray:
     def __init__(self, indices, values, sizes, offsets):
-        self._indices = indices
+        self._indices = np.asanyarray(indices)
         assert np.all(self._indices>=0), self._indices.dtype
-        self._values = values
-        self._sizes = sizes
+        self._values = np.asanyarray(values)
+        self._sizes = np.asanyarray(sizes)
         assert offsets[-1]==self._indices.size, (offsets[-1], self._indices.size)
-        self._offsets = offsets
+        self._offsets = np.asanyarray(offsets)
+
+    def __repr__(self):
+        return f"BGA({self._indices},{self._values}, {self._sizes}, {self._offsets})"
 
     def scale_x(self, size):
         all_sizes=broadcast(self._sizes, self._offsets)
@@ -197,6 +200,14 @@ class BedGraphArray:
         indices = indices[index_changes]
         return BedGraph(indices, values, size=self._sizes[0])
 
+    def join_rows(self, offsets):
+        cum_sizes = np.insert(np.cumsum(self._sizes), 0, 0)
+        new_starts = cum_sizes[:-1]-broadcast(cum_sizes[offsets[:-1]], offsets)
+        new_indices = self._indices+broadcast(new_starts, self._offsets)
+        new_sizes = np.diff(cum_sizes[offsets])
+        new_offsets = self._offsets[offsets]
+        return self.__class__(new_indices, self._values, new_sizes, new_offsets)
+
     def sum(self, axis=None):
         assert axis in (1, None)
         if axis == 1:
@@ -209,3 +220,26 @@ class BedGraphArray:
 
     def __iter__(self):
         return (self[i] for i in range(self._sizes.size))
+
+    @classmethod
+    def vstack(cls, arrays):
+        index_counts = [a._offsets[-1] for a in arrays]
+        offset_offsets = np.cumsum([0] + index_counts)[:-1]
+        offset_list = [a._offsets[:-1]+o for a, o in zip(arrays, offset_offsets)]
+        last_offset = arrays[-1]._offsets[-1]+offset_offsets[-1]
+        new_offsets = np.concatenate(offset_list + [[last_offset]])
+        print(new_offsets)
+        return cls(np.concatenate([a._indices for a in arrays]),
+                   np.concatenate([a._values for a in arrays]),
+                   np.concatenate([a._sizes for a in arrays]),
+                   new_offsets)
+
+
+    @classmethod
+    def from_bedgraphs(cls, bedgraphs):
+        sizes = [bg._size for bg in bedgraphs]
+        offsets = np.cumsum([0] + sizes)
+        values = np.concatenate([bg._values for bg in bedgraphs])
+        indices = np.concatenate([bg._indices for bg in bedgraphs])
+        return cls(indices, values, sizes, offsets)
+        

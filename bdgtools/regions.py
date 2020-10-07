@@ -31,6 +31,13 @@ class Regions:
     def __repr__(self):
         return f"Regions({self.starts}, {self.ends}, {self.directions})"
 
+    def sizes(self):
+        return self.ends-self.starts
+
+    def get_signals(self, bedgraph):
+        return bedgraph.extract_regions(self)
+
+
 def expand(regions, upstream, downstream):
     centers = np.where(regions.directions==1, regions.starts, regions.ends-1)
     starts = centers-np.where(regions.directions==1, upstream, downstream)
