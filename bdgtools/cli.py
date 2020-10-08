@@ -35,12 +35,14 @@ def main():
 @click.argument("plot_type", type=click.Choice(plot_types.keys()))
 @click.argument("data_files", nargs=-1, type=click.File("rb"))
 @click.option("-o", "--out_im", "out_im", type=click.File("wb"))
-def joinfigs(plot_type, data_files, out_im):
+@click.option("-n", "--name", "name", default="")
+def joinfigs(plot_type, data_files, out_im, name):
     figs = [pd.read_pickle(df) for df in data_files]
     names = [PurePath(df.name).stem for df in data_files]
     click.echo("Joining figures from %s" % " ".join(names))
     cls = plot_types[plot_type]
-    join_plots(figs, names, cls, save_path=out_im, show=out_im is None)
+    name = cls.__name__+ ":" + name
+    join_plots(figs, names, cls, save_path=out_im, show=out_im is None, name=name)
 
 
 @main.command()

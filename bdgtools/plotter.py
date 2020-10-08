@@ -1,4 +1,5 @@
 import seaborn as sns
+import numpy as np
 import matplotlib.pyplot as plt
 
 from .aggregateplot import *
@@ -24,7 +25,7 @@ def plot(df, cls, save_path=None, show=False):
         plt.show()
 
 
-def join_plots(dfs, names, cls, save_path=None, show=False):
+def join_plots(dfs, names, cls, save_path=None, show=False, name=""):
     if issubclass(cls, SignalPlot):
         plt.figure(figsize=(10, 10))
         cur_hue = 0
@@ -36,13 +37,21 @@ def join_plots(dfs, names, cls, save_path=None, show=False):
         plt.xlabel(cls.xlabel)
         plt.ylabel(cls.ylabel)
         plt.legend(names)
+        plt.title(name)
     elif issubclass(cls, MatrixPlot):
-        f, axes = plt.subplots(1, len(dfs))
-        for ax, df, name in zip(axes, dfs, names):
+        cols = int(np.sqrt(len(dfs)-1)+1)
+        rows = (len(dfs)-1)//cols+1
+        f, axes = plt.subplots(rows, cols, sharex=True, sharey=True, squeeze=False)
+        f.set_figheight(axes.shape[0]*5)
+        f.set_figwidth(axes.shape[1]*5)
+        f.suptitle(name)
+        for i, (df, name) in enumerate(zip(dfs, names)):
+            ax = axes[i//cols, i%cols]
             sns.heatmap(df, cmap="gray_r", ax=ax)
             ax.set_title(name)
             ax.set_xlabel(cls.xlabel)
-        axes[0].set_ylabel(cls.ylabel)
+        for a in axes[:, 0]:
+            a.set_ylabel(cls.ylabel)
     if save_path is not None:
         plt.savefig(save_path)
     if show:
