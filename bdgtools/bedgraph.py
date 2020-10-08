@@ -186,6 +186,7 @@ class BedGraphArray:
         return BedGraphArray(new_indices[mask], self._values[mask], size*np.ones_like(self._sizes), new_offsets)
 
     def update_dense_diffs(self, diffs, rows):
+        assert rows.size == self._offsets.size-1, (rows.size, self._offsets.size-1)
         ncols = diffs.shape[1]
         all_rows = broadcast(rows, self._offsets)
         composite_indexes = all_rows*ncols + self._indices

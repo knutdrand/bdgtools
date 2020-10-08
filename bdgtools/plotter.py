@@ -10,8 +10,7 @@ def plot(df, cls, save_path=None, show=False):
     plt.figure(figsize=(10, 10))
     if isinstance(cls, SignalPlot):
         if "region" in df:
-            print("Setting HUE")
-            p = sns.lineplot(data=df, x="x", y="y", hue="region")
+            p = sns.lineplot(data=df, x="x", y="y", style="region")
         else:
             p = sns.lineplot(data=df, x="x", y="y")
     else:
@@ -20,7 +19,7 @@ def plot(df, cls, save_path=None, show=False):
     p.set_ylabel(cls.ylabel)
     p.set_title(f"{cls.__class__.__name__}")
     if save_path is not None:
-        plt.savefig(out_im)
+        plt.savefig(save_path)
     if show:
         plt.show()
 

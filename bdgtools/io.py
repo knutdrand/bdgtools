@@ -72,12 +72,12 @@ def _get_genes(df):
     offsets=np.cumsum([0]+lens)
     all_directions = broadcast(directions, offsets)
     regions = Regions(starts, ends, all_directions)
-    coding_offsets = find_coding_offsets(df["cds_start"].values,
+    coding_offsets = _find_coding_offsets(df["cds_start"].values,
                                          df["cds_end"].values,
                                          regions, offsets, all_directions)
     return Genes(regions, offsets, coding_regions=Regions(coding_offsets[0], coding_offsets[1]))
 
-def find_coding_offsets(cds_starts, cds_ends, regions, offsets, directions):
+def _find_coding_offsets(cds_starts, cds_ends, regions, offsets, directions):
     cum_sizes = np.insert(np.cumsum(regions.sizes()), 0, 0)
     starts = broadcast(cds_starts, offsets)
     start_idxs = np.flatnonzero((regions.ends>=starts) & (regions.starts<=starts))
@@ -95,24 +95,6 @@ def find_coding_offsets(cds_starts, cds_ends, regions, offsets, directions):
     local_ends += cum_sizes[end_idxs]-cum_sizes[offsets[:-1]]
     return np.where(directions[start_idxs]==1, local_starts, local_ends), np.where(directions[start_idxs]==-1, local_starts, local_ends)
     
-
-# def get_coding_offsets(exon_starts, exon_ends, cds_start, cds_end, direction):
-def get_coding_offsets(df):
-    n = len(df["exon_ends"])
-    i, p = next((i, e-df["cds_start"]) for i, e in enumerate(df["exon_ends"]) if e>df["cds_start"])
-    local_start = sum(df["exon_ends"][:i+1])-sum(df["exon_starts"][:i+1]) - p
-    j, q = next((j, df["cds_end"]-s) for j, s in enumerate(df["exon_starts"][::-1]) if df["cds_end"]>=s)
-    local_end = sum(df["exon_ends"][:n-j-1])-sum(df["exon_starts"][:n-j-1]) + q
-    size = sum(df["exon_ends"])-sum(df["exon_starts"])
-    assert local_end<=size, (i, q, df)
-    # offsets = np.cumsum([0]+[end-start for start, end in zip(df["exon_starts"], df["exon_ends"])])
-    # idxs = np.searchsorted(df["exon_starts"], [df["cds_start"], df["cds_end"]], side="right")-1
-    # t = tuple(offsets[i]+pos-df["exon_starts"][i] for i, pos in zip(idxs, [df["cds_start"], df["cds_end"]]))
-
-    assert 0<local_start<=local_end<=size, (local_start, local_end, size, df, i, j, p, q)
-    if df["direction"] == "-":
-        return (size-local_end, size-local_start)
-    return (local_start, local_end)
 
 def read_refseq(file_obj):
     get_ints = lambda x: [int(r) for r in x.split(",") if r]

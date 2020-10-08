@@ -73,7 +73,7 @@ class VPlot(MatrixPlot):
         mask = rows<self._figure_shape[0]
         mids = (regions.ends[mask]+regions.starts[mask])//2
         new_regions = Regions(mids-self._region_size//2, mids+self._region_size//2, regions.directions[mask])
-        signals = regions.get_signals(bedgraph).scale_x(self._figure_width).update_dense_diffs(self._diffs, rows[mask])
+        signals = new_regions.get_signals(bedgraph).scale_x(self._figure_width).update_dense_diffs(self._diffs, rows[mask])
         # bedgraph.extract_regions(new_regions)
         rows, counts = np.unique(rows[mask], return_counts=True)
         self._row_counts[rows] += counts
@@ -85,7 +85,7 @@ class VPlot(MatrixPlot):
             D = post-pre
             if D==1:
                 continue
-            values[pre:post] = ((D-np.arange(D))*values[pre]+np.arange(D)*values[post])/D
+            values[pre:post] = ((D-np.arange(D))[:, None]*values[pre]+np.arange(D)[:, None]*values[post])/D
         
         if self._do_normalize:
             values/=(self._coverage/1000000)
@@ -171,12 +171,10 @@ class MetaGenePlot(SignalPlot):
         sizes = (utr_l_size, cds_size, utr_r_size)
         self._region_sizes = np.array(sizes)*self._figure_width//sum(sizes)
         self._region_sizes[-1]+=self._figure_width-np.sum(self._region_sizes)
-        print(self._region_sizes)
 
     def _finalize(self):
         df = super()._finalize()
-        r = np.concatenate([np.ones(size)*i for i, size in zip((1,0,2), self._region_sizes)])
-        df["region"] = r
+        df["region"] = ["utr_l"]*self._region_sizes[0] + ["cds"]*self._region_sizes[1] + ["utr_r"]*self._region_sizes[2]
         return df
 
     def _update_chromosome(self, chrom, bedgraph, regions):
