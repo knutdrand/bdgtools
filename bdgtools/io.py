@@ -1,5 +1,6 @@
 import logging
 from itertools import chain, groupby
+from more_itertools import pairwise
 from operator import itemgetter
 import pandas as pd
 import numpy as np
@@ -31,16 +32,38 @@ def read_bedfile(file_obj):
           for t in chrom_split}
     return r
 
+def _fix_bedgraph(starts, ends, values):
+    ends_w_zero = np.insert(ends[:-1], 0, 0)
+    missing = np.flatnonzero(starts != ends_w_zero)
+    new_starts = ends_w_zero[missing]
+    new_ends = starts[missing]
+    all_starts = np.empty(starts.size+missing.size, dtype=starts.dtype)
+    all_ends = np.empty(starts.size+missing.size,dtype=ends.dtype)
+    all_values = np.empty(starts.size+missing.size, dtype=values.dtype)
+    new_missing = missing + np.arange(missing.size)
+    all_starts[new_missing] = ends_w_zero[missing]
+    all_ends[new_missing] = starts[missing]
+    all_values[new_missing] = 0
+    for i, (a, b) in enumerate(pairwise(chain([0], missing, [starts.size]))):
+        all_starts[a+i:b+i] = starts[a:b]
+        all_ends[a+i:b+i] = ends[a:b]
+        all_values[a+i:b+i] = values[a:b]
+    return all_starts, all_ends, all_values
+
+
 def _get_bedgraph(chunks):
     chunks = list(chunks)
     cur_chrom = chunks[0]["chrom"].iloc[0]
     starts = np.concatenate([c["start"].values for c in chunks])
     ends = np.concatenate([c["end"].values for c in chunks])
-    assert starts[0] == 0, f"Bedgraph does not start on 0 on {cur_chrom}"
-    assert np.all(starts[1:] == ends[:-1]), f"Begraph is not continous on {cur_chrom}, {starts[1:]}, {ends[:-1]}\n{np.flatnonzero(starts[1:]!=ends[:-1])}, {starts.size}"
+    values = np.concatenate([c["value"].values for c in chunks])
+    if  starts[0] != 0 or not np.all(starts[1:] == ends[:-1]):
+        logging.warning(f"Uncomplete bedfile, fixing %s", starts[0])
+        starts, ends, values = _fix_bedgraph(starts, ends, values)
+        assert np.all(starts[1:] == ends[:-1]), f"Begraph is not continous on {cur_chrom}, {starts[1:]}, {ends[:-1]}\n{np.flatnonzero(starts[1:]!=ends[:-1])}, {starts.size}"
     log.info("Read chromosome", cur_chrom)
     return BedGraph(starts,
-                    np.concatenate([c["value"].values for c in chunks]),
+                    values,
                     chunks[-1]["end"].values[-1])
 
 def read_bedgraph(file_obj, size_hint=1000000):

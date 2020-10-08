@@ -12,8 +12,21 @@ def test_read_bedgraph():
              "chr2\t5\t10\t2"]
     f = io.StringIO("\n".join(lines))
     bedgraphs = list(read_bedgraph(f))
+    print(bedgraphs)
     assert bedgraphs == [("chr1", BedGraph([0, 10, 25], [0, 1, 10])),
                          ("chr2", BedGraph([0, 5], [0, 2]))]
+
+def test_read_uncomplete_bedgraph():
+    lines = ["chr1\t10\t25\t1",
+             "chr1\t25\t35\t10",
+             "chr2\t5\t10\t2",
+             "chr2\t20\t30\t3"]
+    
+    f = io.StringIO("\n".join(lines))
+    bedgraphs = list(read_bedgraph(f))
+    assert bedgraphs == [("chr1", BedGraph([0, 10, 25], [0, 1, 10])),
+                         ("chr2", BedGraph([0, 5, 10, 20], [0, 2, 0, 3]))]
+
 
 def test_read_bedfile():
     lines = ["chr1\t0\t10",
