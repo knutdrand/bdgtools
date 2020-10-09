@@ -10,10 +10,8 @@ def plot(df, cls, save_path=None, show=False):
         return
     plt.figure(figsize=(10, 10))
     if isinstance(cls, SignalPlot):
-        if "region" in df:
-            p = sns.lineplot(data=df, x="x", y="y", style="region")
-        else:
-            p = sns.lineplot(data=df, x="x", y="y")
+        kwargs = {"size": "region", "size_order": ["cds", "utr_l", "utr_r"]} if "region" in df else {}
+        p = sns.lineplot(data=df, x="x", y="y", **kwargs)
     else:
         p = sns.heatmap(df, cmap="gray_r")
     p.set_xlabel(cls.xlabel)
@@ -28,15 +26,13 @@ def plot(df, cls, save_path=None, show=False):
 def join_plots(dfs, names, cls, save_path=None, show=False, name=""):
     if issubclass(cls, SignalPlot):
         plt.figure(figsize=(10, 10))
-        cur_hue = 0
-        for df in dfs:
-            if "region" in df:
-                p = sns.lineplot(data=df, x="x", y="y", style="region")
-            else:
-                sns.lineplot(data=df, x="x", y="y")
+        for df, name in zip(dfs, names):
+            df["name"] = name
+        df = pd.concat(dfs)
+        kwargs = {"size": "region", "size_order": ["cds", "utr_l", "utr_r"]} if "region" in df else {}
+        p = sns.lineplot(data=df, x="x", y="y", hue="name", **kwargs)
         plt.xlabel(cls.xlabel)
         plt.ylabel(cls.ylabel)
-        plt.legend(names)
         plt.title(name)
     elif issubclass(cls, MatrixPlot):
         cols = int(np.sqrt(len(dfs)-1)+1)
