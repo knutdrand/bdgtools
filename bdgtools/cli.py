@@ -47,7 +47,7 @@ def joinfigs(plot_type, data_files, out_im, name):
 
 @main.command()
 @click.argument("plot_type", type=click.Choice(plot_types.keys()))
-@click.argument("bedgraph", type=click.File("r"))
+@click.argument("bedgraph", type=click.Path())
 @click.argument("genefile", type=click.Path())
 @click.option("-o", "--out_im", "out_im", type=click.File("wb"), help="Path to output figure")
 @click.option("-od", "--out_data", "out_data", type=click.File("wb"), help="Path to pickle of figure")

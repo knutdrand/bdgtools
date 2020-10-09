@@ -14,7 +14,8 @@ requirements = ['Click>=7.0',
                 'numpy',
                 'pandas',
                 'seaborn',
-                'matplotlib']
+                'matplotlib',
+                'more_itertools']
 
 setup_requirements = ['pytest-runner', ]
 
