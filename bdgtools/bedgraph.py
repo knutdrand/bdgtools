@@ -21,6 +21,8 @@ class BedGraph:
         self._values = np.asanyarray(values)
         if size is not None:
             self._size = int(size)
+        else:
+            self._size = None
 
     def __iter__(self):
         pairs = zip(self._indices, chain(self._indices[1:], [self._size]))

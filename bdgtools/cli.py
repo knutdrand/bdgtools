@@ -1,17 +1,19 @@
 """Console script for bdgtools."""
 import sys
 import click
+import gzip
 from pathlib import PurePath
 
-from .io import read_bedgraph, read_bedfile, read_refseq
+from .io import read_bedgraph, read_bedfile, read_refseq, read_large_bedfile, write_bedgraph
 from .aggregateplot import *
+from .coverage import get_coverage
 from .plotter import plot, join_plots
 plot_types = {"v": VPlot, "average": AveragePlot, "heat": HeatPlot, "tss": TSSPlot, "signal": SignalPlot,
-              "metagene": MetaGenePlot}
+              "metagene": MetaGenePlot, "border": BorderPlot}
 
 @click.command()
 @click.argument("plot_type", type=click.Choice(plot_types.keys()))
-@click.argument("bedgraph", type=click.File("r"))
+@click.argument("bedgraph", type=click.Path())
 @click.argument("bedfile", type=click.File("r"))
 @click.option("-o", "--out_im", "out_im", type=click.File("wb"), help="Path to output figure")
 @click.option("-od", "--out_data", "out_data", type=click.File("wb"), help="Path to pickle of figure")
@@ -62,6 +64,16 @@ def geneplot(plot_type, bedgraph, genefile, out_im, out_data, figure_width, regi
     if out_data is not None:
         fig.to_pickle(out_data)
     return 0
+
+@main.command()
+@click.argument("bedfile", type=click.Path())
+@click.option("-o", "--outfile", "outfile", type=click.File("w"), help="Path to bedgraph file")
+def bed2bdg(bedfile, outfile):
+    bedfile = read_large_bedfile(gzip.open(bedfile, "rt"))
+    bedgraphs = ((chrom, get_coverage(regions)) for chrom, regions in bedfile)
+    write_bedgraph(bedgraphs, outfile)
+    return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

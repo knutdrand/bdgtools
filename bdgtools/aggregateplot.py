@@ -63,7 +63,15 @@ class VPlot(MatrixPlot):
     xlabel="Distance from center"
     ylabel="Domain size"
     _aspect_ratio=1
-    _region_size = 50000
+    _region_size = None
+
+
+    def _pre_process(self, bedgraphs, regions):
+        if self._region_size is not None:
+            return
+        self._region_size = max(np.max(r.sizes()) for r in regions.values())
+        print(self._region_size)
+
 
     def get_y_axis(self):
         return np.arange(self._row_counts.size)*self._region_size//self._row_counts.size
@@ -152,6 +160,12 @@ class TSSPlot(SignalPlot):
 
     def _transform_regions(self, regions):
         return expand(regions, self._region_size//2, self._region_size//2)
+
+class BorderPlot(TSSPlot):
+    xlabel="Distance from Border"
+    def _transform_regions(self, regions):
+        reversed_regions = Regions(regions.starts, regions.ends, -regions.directions)
+        return expand(Regions.concatenate([regions, reversed_regions]) , self._region_size//2, self._region_size//2)
 
 class AveragePlot(SignalPlot):
     def get_x_axis(self):

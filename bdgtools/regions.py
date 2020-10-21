@@ -39,10 +39,17 @@ class Regions:
     def get_signals(self, bedgraph):
         return bedgraph.extract_regions(self)
 
+    @classmethod
+    def concatenate(cls, regions_list):
+        starts = np.concatenate([r.starts for r in regions_list])
+        ends = np.concatenate([r.ends for r in regions_list])
+        directions = np.concatenate([r.directions for r in regions_list])
+        args = starts.argsort(kind="mergesort")
+        return cls(starts[args], ends[args], directions[args])
 
 def expand(regions, upstream, downstream):
     centers = np.where(regions.directions==1, regions.starts, regions.ends-1)
     starts = centers-np.where(regions.directions==1, upstream, downstream)
     ends = centers+np.where(regions.directions==1, downstream, upstream)
-    args = starts.argsort()
+    args = starts.argsort(kind="mergesort")
     return Regions(starts[args], ends[args], regions.directions[args])

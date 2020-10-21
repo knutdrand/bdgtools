@@ -74,6 +74,34 @@ def read_bedgraph(file_obj, size_hint=1000000):
     return ((chrom, _get_bedgraph(group)) for chrom, group in grouped)
 
 
+def _get_bedfile(chunks, with_strand=False):
+    chunks = list(chunks)
+    cur_chrom = chunks[0]["chrom"].iloc[0]
+    starts = np.concatenate([c["start"].values for c in chunks])
+    ends = np.concatenate([c["end"].values for c in chunks])
+    if with_strand:
+        strands = np.concatenate([np.where(c["strand"].values=="+", 1, -1) for c in chunks])
+    else:
+        strands=1
+    log.info("Read chromosome", cur_chrom)
+    return Regions(starts,
+                   ends,
+                   strands)
+
+def read_large_bedfile(file_obj, size_hint=1000000):
+    n_cols = len(_peek_line(file_obj).split("\t"))
+    assert n_cols >=3, n_cols
+    names=["chrom", "start", "end"]
+    cols = [0, 1, 2]
+    if n_cols>=6:
+        names.append("strand")
+        cols.append(5)
+    reader = pd.read_table(file_obj, names=names, usecols=cols, chunksize=size_hint)
+    grouped = groupby(chain.from_iterable(chunk.groupby("chrom", sort=False) for chunk in reader), 
+                      itemgetter(0))
+    grouped = ((chrom, map(itemgetter(1),  group)) for chrom, group in grouped)
+    return ((chrom, _get_bedfile(group)) for chrom, group in grouped)
+
 def _filter_coding(df):
     s = np.array([starts[0] for starts in df["exon_starts"]])
     e = np.array([ends[-1] for ends in df["exon_ends"]])
@@ -128,3 +156,28 @@ def read_refseq(file_obj):
     grouped = df.sort_values(["chrom", "start"]).groupby("chrom", sort=False)
     d =  {chrom: _get_genes(df) for chrom, df in grouped}
     return {chrom: genes for chrom,  genes in d.items() if genes is not None}
+
+def write_bedgraph(bedgraphs, f):
+    for chrom, bedgraph in bedgraphs:
+        if bedgraph._size is not None:
+            df = pd.DataFrame({"chrom": chrom,
+                               "start": bedgraph._indices,
+                               "end": np.append(bedgraph._indices, bedgraph._size),
+                               "value": bedgraph._values})
+        else:
+            df = pd.DataFrame({"chrom": chrom,
+                               "start": bedgraph._indices[:-1],
+                               "end": bedgraph._indices[1:],
+                               "value": bedgraph._values[:-1]})
+        df.to_csv(f, sep="\t", header=False, index=False)
+
+def write_bedfile(regions_dict, f):
+    for chrom, regions in regions_dict.items():
+        df = pd.DataFrame({"chrom": chrom,
+                           "start": regions.starts,
+                           "end": regions.ends})
+        df.to_csv(f, sep="\t", header=False, index=False)
+                         
+                         
+        
+        
